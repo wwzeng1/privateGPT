@@ -55,6 +55,13 @@ def test_retrieve_nodes(test_client: TestClient, ingest_helper: IngestHelper) ->
 
 def test_sort_nodes(test_client: TestClient, ingest_helper: IngestHelper) -> None:
     # Setup
+    sorted_nodes, nodes = setup_chunks_service(ingest_helper)
+
+    # Assert nodes are sorted correctly
+    assert sorted_nodes == sorted(nodes, key=lambda n: n.score or 0.0, reverse=True)
+
+def setup_chunks_service(ingest_helper):
+    # Setup
     path = Path(__file__).parents[0] / "chunk_test.txt"
     ingest_helper.ingest_file(path)
     llm_component = Mock()
@@ -67,9 +74,7 @@ def test_sort_nodes(test_client: TestClient, ingest_helper: IngestHelper) -> Non
 
     # Call function
     sorted_nodes = service.sort_nodes(nodes)
-
-    # Assert nodes are sorted correctly
-    assert sorted_nodes == sorted(nodes, key=lambda n: n.score or 0.0, reverse=True)
+    return sorted_nodes, nodes
 
 def test_create_chunks_from_nodes(test_client: TestClient, ingest_helper: IngestHelper) -> None:
     # Setup
