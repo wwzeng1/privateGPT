@@ -84,6 +84,12 @@ class ChunksService:
         limit: int = 10,
         prev_next_chunks: int = 0,
     ) -> list[Chunk]:
+        vector_index_retriever = self.create_chunks_from_nodes(context_filter, limit)
+        nodes = self.retrieve_and_sort_nodes(vector_index_retriever, text)
+
+        return self.setup_vector_index_retriever(nodes, prev_next_chunks)
+
+    def create_chunks_from_nodes(self, context_filter, limit):
         index = VectorStoreIndex.from_vector_store(
             self.vector_store_component.vector_store,
             storage_context=self.storage_context,
@@ -93,9 +99,14 @@ class ChunksService:
         vector_index_retriever = self.vector_store_component.get_retriever(
             index=index, context_filter=context_filter, similarity_top_k=limit
         )
+        return vector_index_retriever
+
+    def retrieve_and_sort_nodes(self, vector_index_retriever, text):
         nodes = vector_index_retriever.retrieve(text)
         nodes.sort(key=lambda n: n.score or 0.0, reverse=True)
+        return nodes
 
+    def setup_vector_index_retriever(self, nodes, prev_next_chunks):
         retrieved_nodes = []
         for node in nodes:
             doc_id = node.node.ref_doc_id if node.node.ref_doc_id is not None else "-"
