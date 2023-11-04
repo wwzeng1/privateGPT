@@ -84,36 +84,47 @@ class ChunksService:
         limit: int = 10,
         prev_next_chunks: int = 0,
     ) -> list[Chunk]:
-        index = VectorStoreIndex.from_vector_store(
-            self.vector_store_component.vector_store,
-            storage_context=self.storage_context,
-            service_context=self.query_service_context,
-            show_progress=True,
-        )
-        vector_index_retriever = self.vector_store_component.get_retriever(
-            index=index, context_filter=context_filter, similarity_top_k=limit
-        )
-        nodes = vector_index_retriever.retrieve(text)
-        nodes.sort(key=lambda n: n.score or 0.0, reverse=True)
+        vector_index_retriever = create_chunks_from_nodes(self, context_filter, limit)
+        nodes = retrieve_and_sort_nodes(vector_index_retriever, text)
 
-        retrieved_nodes = []
-        for node in nodes:
-            doc_id = node.node.ref_doc_id if node.node.ref_doc_id is not None else "-"
-            retrieved_nodes.append(
-                Chunk(
-                    object="context.chunk",
-                    score=node.score or 0.0,
-                    document=IngestedDoc(
-                        object="ingest.document",
-                        doc_id=doc_id,
-                        doc_metadata=node.metadata,
-                    ),
-                    text=node.get_content(),
-                    previous_texts=self._get_sibling_nodes_text(
-                        node, prev_next_chunks, False
-                    ),
-                    next_texts=self._get_sibling_nodes_text(node, prev_next_chunks),
-                )
+        return setup_vector_index_retriever(nodes, self, prev_next_chunks)
+
+def create_chunks_from_nodes(self, context_filter, limit):
+    index = VectorStoreIndex.from_vector_store(
+        self.vector_store_component.vector_store,
+        storage_context=self.storage_context,
+        service_context=self.query_service_context,
+        show_progress=True,
+    )
+    vector_index_retriever = self.vector_store_component.get_retriever(
+        index=index, context_filter=context_filter, similarity_top_k=limit
+    )
+    return vector_index_retriever
+
+def retrieve_and_sort_nodes(vector_index_retriever, text):
+    nodes = vector_index_retriever.retrieve(text)
+    nodes.sort(key=lambda n: n.score or 0.0, reverse=True)
+    return nodes
+
+def setup_vector_index_retriever(nodes, self, prev_next_chunks):
+    retrieved_nodes = []
+    for node in nodes:
+        doc_id = node.node.ref_doc_id if node.node.ref_doc_id is not None else "-"
+        retrieved_nodes.append(
+            Chunk(
+                object="context.chunk",
+                score=node.score or 0.0,
+                document=IngestedDoc(
+                    object="ingest.document",
+                    doc_id=doc_id,
+                    doc_metadata=node.metadata,
+                ),
+                text=node.get_content(),
+                previous_texts=self._get_sibling_nodes_text(
+                    node, prev_next_chunks, False
+                ),
+                next_texts=self._get_sibling_nodes_text(node, prev_next_chunks),
             )
+        )
 
-        return retrieved_nodes
+    return retrieved_nodes
